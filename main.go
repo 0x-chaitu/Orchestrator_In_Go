@@ -6,8 +6,10 @@ import (
 	"Cube/task"
 	"Cube/worker"
 	"fmt"
+	"os"
 	"time"
 
+	"github.com/docker/docker/client"
 	"github.com/golang-collections/collections/queue"
 	"github.com/google/uuid"
 )
@@ -64,5 +66,47 @@ func main() {
 	}
 
 	fmt.Printf("node : %v\n", n)
+
+	dockerTask, createResult := createContainer()
+	if createResult.Error != nil {
+		fmt.Println(createResult.Error)
+		os.Exit(1)
+	}
+	time.Sleep(time.Second * 5)
+	fmt.Printf("Stopping container %s: \n", Stop(dockerTask))
+}
+
+func createContainer() (*task.Docker, *task.DockerResult) {
+	c := task.Config{
+		Name:  "postgres-1",
+		Image: "postgres:13",
+		Env: []string{
+			"POSTGRES_USER=cube",
+			"POSTGRES_PASSWORD=cube",
+		},
+	}
+	dc, _ := client.NewClientWithOpts(client.FromEnv)
+	d := task.Docker{
+		Config: c,
+		Client: dc,
+	}
+
+	result := d.Run()
+	if result.Error != nil {
+		fmt.Printf("Error in creating container: %v", result.Error)
+		return nil, nil
+	}
+	fmt.Printf("Container %s is running with config %v\n", c.Name, d)
+	return &d, &result
+}
+
+func Stop(d *task.Docker) *task.DockerResult {
+	result := d.Stop()
+	if result.Error != nil {
+		fmt.Printf("Error in stopping container: %v", result.Error)
+		return nil
+	}
+	fmt.Printf("Stopped container %s:", d.ContainerId)
+	return &result
 
 }

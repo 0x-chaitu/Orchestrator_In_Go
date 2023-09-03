@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"log"
 	"os"
@@ -74,7 +75,7 @@ type DockerResult struct {
 
 func (d *Docker) Run() DockerResult {
 	ctx := context.Background()
-	reader, err := d.Client.ImagePull(ctx, d.Config.Name, types.ImagePullOptions{})
+	reader, err := d.Client.ImagePull(ctx, d.Config.Image, types.ImagePullOptions{})
 	if err != nil {
 		log.Printf("Error pulling Image: %s %v", d.Config.Name, err)
 		return DockerResult{Error: err}
@@ -109,7 +110,7 @@ func (d *Docker) Run() DockerResult {
 		return DockerResult{Error: err}
 	}
 	d.ContainerId = resp.ID
-	out, err := d.Client.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{})
+	out, err := d.Client.ContainerLogs(ctx, resp.ID, types.ContainerLogsOptions{ShowStdout: true})
 
 	if err != nil {
 		log.Printf("Error getting logs for container %s %v\n", resp.ID, err)
@@ -123,4 +124,21 @@ func (d *Docker) Run() DockerResult {
 		Action:      "start",
 		ContainerId: resp.ID,
 	}
+}
+
+func (d *Docker) Stop() DockerResult {
+	log.Printf("Attempting to stop container %s\n", d.ContainerId)
+	ctx := context.Background()
+	err := d.Client.ContainerStop(ctx, d.ContainerId, container.StopOptions{})
+	if err != nil {
+		fmt.Printf("Error stopping container: %s %v", d.ContainerId, err)
+		panic(err)
+	}
+	err = d.Client.ContainerRemove(ctx, d.ContainerId, types.ContainerRemoveOptions{})
+	if err != nil {
+		fmt.Printf("Error removing container %v\n", err)
+		panic(err)
+	}
+	return DockerResult{ContainerId: d.ContainerId, Action: "stop", Result: "success"}
+
 }
